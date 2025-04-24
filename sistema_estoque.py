@@ -2,7 +2,6 @@ import csv
 from dataclasses import dataclass
 from typing import Dict, List
 from datetime import datetime
-import math
 
 
 @dataclass
@@ -22,9 +21,13 @@ class Produto:
     movimentacoes: List[Movimentacao] = None
     tentativa_venda_negativa: bool = False
     total_falta_estoque: float = 0.0
+    vendas_negativas_por_dia: Dict[datetime, int] = None
+    dia_mais_vendas_negativas: datetime = None
+    qtd_vendas_negativas_no_dia: int = 0
 
     def __post_init__(self):
         self.movimentacoes = []
+        self.vendas_negativas_por_dia = {}
 
     def registrar_entrada(self, data: datetime, quantidade: float):
         self.saldo_atual += quantidade
@@ -42,6 +45,17 @@ class Produto:
         else:
             self.tentativa_venda_negativa = True
             self.total_falta_estoque += quantidade - self.saldo_atual
+            
+            # Registra a tentativa de venda negativa do dia
+            data_sem_hora = datetime(data.year, data.month, data.day)
+            self.vendas_negativas_por_dia[data_sem_hora] = self.vendas_negativas_por_dia.get(data_sem_hora, 0) + 1
+            
+            # Atualiza o dia com mais vendas negativas
+            qtd_atual = self.vendas_negativas_por_dia[data_sem_hora]
+            if self.dia_mais_vendas_negativas is None or qtd_atual > self.qtd_vendas_negativas_no_dia:
+                self.dia_mais_vendas_negativas = data_sem_hora
+                self.qtd_vendas_negativas_no_dia = qtd_atual
+            
             return False
 
     @property
@@ -171,37 +185,17 @@ class ControladorEstoque:
               f"{total_saidas:>11.2f} "
               f"{total_saldo:>11.2f}")
         
-        if abs(total_percentual - 100) > 0.01:
-            print("\nVALIDAÇÕES E ALERTAS:")
-            print(f"ALERTA: Soma dos percentuais ({total_percentual:.3f}%) não totaliza 100%")
-
-    def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
-        """Gera um relatório detalhado das movimentações de um produto específico"""
-        if codigo_produto is not None and codigo_produto not in self.produtos:
-            print(f"Produto {codigo_produto} não encontrado!")
-            return
-
-        produtos = [self.produtos[codigo_produto]] if codigo_produto else self.produtos.values()
-        
-        for produto in produtos:
-            print(f"\nMOVIMENTAÇÕES - {produto.codigo} {produto.descricao}")
-            print("=" * 80)
-            print(f"{'Data':<12} {'Tipo':<8} {'Quantidade':>12} {'Saldo':>12}")
-            print("-" * 80)
-            
-            for mov in produto.movimentacoes:
-                tipo = "Entrada" if mov.tipo == 'E' else "Saída"
-                print(f"{mov.data.strftime('%Y-%m-%d'):<12} "
-                      f"{tipo:<8} "
-                      f"{mov.quantidade:>12.2f} "
-                      f"{mov.saldo_apos:>12.2f}")
-
-    def calcular_percentuais_ideais(self):
-        # Validações e alertas
         # Encontra o produto com maior saldo
         produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
-        print("\nPRODUTO COM MAIOR SALDO FINAL:")
-        print(f"{produto_maior_saldo.codigo} - {produto_maior_saldo.descricao} : Saldo Final {produto_maior_saldo.saldo_atual:.3f} kg")
+        print("\nPRODUTO COM MAIOR SALDO:")
+        print(f"Código: {produto_maior_saldo.codigo}")
+        print(f"Descrição: {produto_maior_saldo.descricao}")
+        print(f"Saldo atual: {produto_maior_saldo.saldo_atual:.3f} kg")
+
+        # Validações e alertas
+        print("\nVALIDAÇÕES E ALERTAS:")
+        if abs(total_percentual - 100) > 0.01:
+            print(f"ALERTA: Soma dos percentuais ({total_percentual:.3f}%) não totaliza 100%")
         
         produtos_negativos = [p for p in self.produtos.values() if p.saldo_atual < 0]
         if produtos_negativos:
@@ -214,27 +208,33 @@ class ControladorEstoque:
             print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
             for produto in produtos_tentativa_negativa:
                 total_falta = getattr(produto, 'total_falta_estoque', 0)
-                # Calcula a proporção em relação ao total de entrada do boi
-                proporcao_falta = math.ceil((total_falta / self.entrada_total) * 100)/100
                 print(f"- {produto.codigo} {produto.descricao}")
                 print(f"  Total de quantidade faltante: {total_falta:.3f} kg")
-                print(f"  Proporção da falta em relação à entrada total: {proporcao_falta}%")
+                if produto.dia_mais_vendas_negativas:
+                    print(f"  Dia com mais tentativas de vendas negativas: {produto.dia_mais_vendas_negativas.strftime('%d/%m/%y')}")
+                    print(f"  Quantidade de tentativas neste dia: {produto.qtd_vendas_negativas_no_dia}")
 
-def main():
+    def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
+        """Gera um relatório detalhado das movimentações de um produto específico"""
+        if codigo_produto is not None and codigo_produto not in self.produtos:
+            print(f"Produto {codigo_produto} não encontrado!")
+            return
+
+        produtos = [self.produtos[codigo_produto]] if codigo_produto else self.produtos.values()
+        
+        for produto in produtos:
+            print(f"\nMovimentações do produto {produto.codigo} - {produto.descricao}")
+            print("-" * 80)
+            print(f"{'Data':<12} {'Tipo':<8} {'Quantidade':>12} {'Saldo':>12}")
+            print("-" * 80)
+            
+            for mov in produto.movimentacoes:
+                print(f"{mov.data.strftime('%d/%m/%y'):<12} "
+                      f"{mov.tipo:<8} "
+                      f"{mov.quantidade:>12.3f} "
+                      f"{mov.saldo_apos:>12.3f}")
+            print("-" * 80)
+
+if __name__ == "__main__":
     controlador = ControladorEstoque()
     controlador.gerar_relatorio()
-    
-    # Exemplo de relatório detalhado para um produto específico
-    # print("\nRelatório detalhado de movimentações:")
-    # controlador.gerar_relatorio_movimentacoes(145889)  # Exemplo com um código específico
-    # Calcula os percentuais ideais apenas se houver alertas de estoque insuficiente
-    if controlador.tem_alertas_estoque:
-        print("\n\n\nForam detectadas tentativas de venda sem estoque suficiente.")
-        print("Calculando percentuais ideais para evitar este problema...")
-        controlador.calcular_percentuais_ideais()
-    else:
-        print("\nNão foram detectados problemas de estoque insuficiente.")
-        print("Não é necessário recalcular os percentuais.")
-if __name__ == "__main__":
-    main()
-    
