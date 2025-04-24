@@ -19,6 +19,7 @@ class Produto:
     percentual: float = 0.0
     saldo_atual: float = 0.0
     movimentacoes: List[Movimentacao] = None
+    tentativa_venda_negativa: bool = False
 
     def __post_init__(self):
         self.movimentacoes = []
@@ -36,7 +37,9 @@ class Produto:
                 Movimentacao(data, 'S', quantidade, self.saldo_atual)
             )
             return True
-        return False
+        else:
+            self.tentativa_venda_negativa = True
+            return False
 
     @property
     def total_entradas(self) -> float:
@@ -168,6 +171,12 @@ class ControladorEstoque:
             print("\nALERTA: Produtos com saldo negativo:")
             for produto in produtos_negativos:
                 print(f"- {produto.codigo} {produto.descricao}: {produto.saldo_atual:.3f} kg")
+        
+        produtos_tentativa_negativa = [p for p in self.produtos.values() if p.tentativa_venda_negativa]
+        if produtos_tentativa_negativa:
+            print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
+            for produto in produtos_tentativa_negativa:
+                print(f"- {produto.codigo} {produto.descricao}")
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
         """Gera um relatório detalhado das movimentações de um produto específico"""
