@@ -171,32 +171,9 @@ class ControladorEstoque:
               f"{total_saidas:>11.2f} "
               f"{total_saldo:>11.2f}")
         
-        # Validações e alertas
-        # Encontra o produto com maior saldo
-        produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
-        print("\nPRODUTO COM MAIOR SALDO FINAL:")
-        print(f"{produto_maior_saldo.codigo} - {produto_maior_saldo.descricao} : Saldo Final {produto_maior_saldo.saldo_atual:.3f} kg")
-
-        print("\nVALIDAÇÕES E ALERTAS:")
         if abs(total_percentual - 100) > 0.01:
+            print("\nVALIDAÇÕES E ALERTAS:")
             print(f"ALERTA: Soma dos percentuais ({total_percentual:.3f}%) não totaliza 100%")
-        
-        produtos_negativos = [p for p in self.produtos.values() if p.saldo_atual < 0]
-        if produtos_negativos:
-            print("\nALERTA: Produtos com saldo negativo:")
-            for produto in produtos_negativos:
-                print(f"- {produto.codigo} {produto.descricao}: {produto.saldo_atual:.3f} kg")
-        
-        produtos_tentativa_negativa = [p for p in self.produtos.values() if p.tentativa_venda_negativa]
-        if produtos_tentativa_negativa:
-            print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
-            for produto in produtos_tentativa_negativa:
-                total_falta = getattr(produto, 'total_falta_estoque', 0)
-                # Calcula a proporção em relação ao total de entrada do boi
-                proporcao_falta = math.ceil((total_falta / self.entrada_total) * 100)/100
-                print(f"- {produto.codigo} {produto.descricao}")
-                print(f"  Total de quantidade faltante: {total_falta:.3f} kg")
-                print(f"  Proporção da falta em relação à entrada total: {proporcao_falta}%")
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
         """Gera um relatório detalhado das movimentações de um produto específico"""
@@ -220,7 +197,28 @@ class ControladorEstoque:
                       f"{mov.saldo_apos:>12.2f}")
 
     def calcular_percentuais_ideais(self):
-        print("Calculando percentuais ideais para os produtos...")
+        # Validações e alertas
+        # Encontra o produto com maior saldo
+        produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
+        print("\nPRODUTO COM MAIOR SALDO FINAL:")
+        print(f"{produto_maior_saldo.codigo} - {produto_maior_saldo.descricao} : Saldo Final {produto_maior_saldo.saldo_atual:.3f} kg")
+        
+        produtos_negativos = [p for p in self.produtos.values() if p.saldo_atual < 0]
+        if produtos_negativos:
+            print("\nALERTA: Produtos com saldo negativo:")
+            for produto in produtos_negativos:
+                print(f"- {produto.codigo} {produto.descricao}: {produto.saldo_atual:.3f} kg")
+        
+        produtos_tentativa_negativa = [p for p in self.produtos.values() if p.tentativa_venda_negativa]
+        if produtos_tentativa_negativa:
+            print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
+            for produto in produtos_tentativa_negativa:
+                total_falta = getattr(produto, 'total_falta_estoque', 0)
+                # Calcula a proporção em relação ao total de entrada do boi
+                proporcao_falta = math.ceil((total_falta / self.entrada_total) * 100)/100
+                print(f"- {produto.codigo} {produto.descricao}")
+                print(f"  Total de quantidade faltante: {total_falta:.3f} kg")
+                print(f"  Proporção da falta em relação à entrada total: {proporcao_falta}%")
 
 def main():
     controlador = ControladorEstoque()
@@ -228,10 +226,10 @@ def main():
     
     # Exemplo de relatório detalhado para um produto específico
     # print("\nRelatório detalhado de movimentações:")
-    # controlador.gerar_relatorio_movimentacoes(145924)  # Exemplo com um código específico
+    # controlador.gerar_relatorio_movimentacoes(145889)  # Exemplo com um código específico
     # Calcula os percentuais ideais apenas se houver alertas de estoque insuficiente
     if controlador.tem_alertas_estoque:
-        print("\nForam detectadas tentativas de venda sem estoque suficiente.")
+        print("\n\n\nForam detectadas tentativas de venda sem estoque suficiente.")
         print("Calculando percentuais ideais para evitar este problema...")
         controlador.calcular_percentuais_ideais()
     else:
