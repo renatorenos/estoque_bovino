@@ -2,6 +2,7 @@ import csv
 from dataclasses import dataclass
 from typing import Dict, List
 from datetime import datetime
+import math
 
 
 @dataclass
@@ -20,6 +21,7 @@ class Produto:
     saldo_atual: float = 0.0
     movimentacoes: List[Movimentacao] = None
     tentativa_venda_negativa: bool = False
+    total_falta_estoque: float = 0.0
 
     def __post_init__(self):
         self.movimentacoes = []
@@ -39,6 +41,7 @@ class Produto:
             return True
         else:
             self.tentativa_venda_negativa = True
+            self.total_falta_estoque += quantidade - self.saldo_atual
             return False
 
     @property
@@ -112,12 +115,19 @@ class ControladorEstoque:
                 # Venda de produto específico
                 produto = self.produtos[codigo]
                 if not produto.registrar_saida(data, quantidade):
+                    falta = quantidade - produto.saldo_atual
                     print(f"ALERTA: Tentativa de venda sem estoque suficiente em {data.strftime('%d/%m/%y')}")
                     print(f"Produto: {produto.codigo} - {produto.descricao}")
                     print(f"Quantidade solicitada: {quantidade:.3f}")
                     print(f"Saldo disponível: {produto.saldo_atual:.3f}")
+                    print(f"Quantidade faltante: {falta:.3f}")
                     print()                    
                     self.tem_alertas_estoque = True
+                    
+                    # Armazenar a quantidade faltante no produto
+                    if not hasattr(produto, 'total_falta_estoque'):
+                        produto.total_falta_estoque = 0
+                    produto.total_falta_estoque += falta
                     
     def gerar_relatorio(self):
         """Gera um relatório completo do estoque"""
@@ -162,6 +172,11 @@ class ControladorEstoque:
               f"{total_saldo:>11.2f}")
         
         # Validações e alertas
+        # Encontra o produto com maior saldo
+        produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
+        print("\nPRODUTO COM MAIOR SALDO FINAL:")
+        print(f"{produto_maior_saldo.codigo} - {produto_maior_saldo.descricao} : Saldo Final {produto_maior_saldo.saldo_atual:.3f} kg")
+
         print("\nVALIDAÇÕES E ALERTAS:")
         if abs(total_percentual - 100) > 0.01:
             print(f"ALERTA: Soma dos percentuais ({total_percentual:.3f}%) não totaliza 100%")
@@ -176,7 +191,12 @@ class ControladorEstoque:
         if produtos_tentativa_negativa:
             print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
             for produto in produtos_tentativa_negativa:
+                total_falta = getattr(produto, 'total_falta_estoque', 0)
+                # Calcula a proporção em relação ao total de entrada do boi
+                proporcao_falta = math.ceil((total_falta / self.entrada_total) * 100)/100
                 print(f"- {produto.codigo} {produto.descricao}")
+                print(f"  Total de quantidade faltante: {total_falta:.3f} kg")
+                print(f"  Proporção da falta em relação à entrada total: {proporcao_falta}%")
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
         """Gera um relatório detalhado das movimentações de um produto específico"""
