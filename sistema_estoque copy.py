@@ -61,12 +61,7 @@ class Produto:
             elif self.dia_mais_vendas_negativas == data_sem_hora:
                 self.falta_no_dia_mais_vendas_negativas += falta
             
-            # Realiza a venda mesmo sem estoque suficiente
-            self.saldo_atual -= quantidade
-            self.movimentacoes.append(
-                Movimentacao(data, 'S', quantidade, self.saldo_atual)
-            )
-            return True
+            return False
 
     @property
     def total_entradas(self) -> float:
@@ -94,7 +89,7 @@ class ControladorEstoque:
     
     def carregar_produtos_e_percentuais(self):
         """Carrega os produtos e seus percentuais de rendimento"""
-        with open('percentuais.csv', 'r', encoding='utf-8') as file:
+        with open('percentuais_v2.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 codigo = int(row['SEQPRODUTO'])
@@ -106,7 +101,7 @@ class ControladorEstoque:
         """Carrega todas as movimentações (entradas e saídas) e ordena por data"""
         # Carrega entradas
         entradas = []
-        with open('entradas.csv', 'r', encoding='utf-8') as file:
+        with open('entradas_v2.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -119,7 +114,7 @@ class ControladorEstoque:
 
         # Carrega vendas
         vendas = []
-        with open('vendas.csv', 'r', encoding='utf-8') as file:
+        with open('vendas_v2.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -217,7 +212,7 @@ class ControladorEstoque:
         
         # Encontra o produto com maior saldo
         produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
-        print(f"\nPRODUTO COM MAIOR SALDO:")
+        print("\nPRODUTO COM MAIOR SALDO:")
         print(f"Código: {produto_maior_saldo.codigo}")
         print(f"Descrição: {produto_maior_saldo.descricao}")
         print(f"Saldo atual: {produto_maior_saldo.saldo_atual:.3f} kg")
@@ -246,8 +241,10 @@ class ControladorEstoque:
                     print(f"  Total faltante neste dia: {produto.falta_no_dia_mais_vendas_negativas:.3f} kg")
                     # Encontra a entrada correspondente ao dia com mais vendas negativas
                     entrada_do_dia = self.encontrar_entrada_do_dia(produto.dia_mais_vendas_negativas)
+                    print(entrada_do_dia)
                     if entrada_do_dia > 0:
-                        porcentagem = (produto.falta_no_dia_mais_vendas_negativas / entrada_do_dia) * 100
+                        # porcentagem = (produto.falta_no_dia_mais_vendas_negativas / entrada_do_dia) * 100
+                        porcentagem = (total_falta / entrada_do_dia) * 100
                         print(f"  Porcentagem em relação à entrada do dia: {porcentagem:.2f}%")
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
@@ -275,4 +272,3 @@ class ControladorEstoque:
 if __name__ == "__main__":
     controlador = ControladorEstoque()
     controlador.gerar_relatorio()
-    
