@@ -19,55 +19,28 @@ class Produto:
     percentual: float = 0.0
     saldo_atual: float = 0.0
     movimentacoes: List[Movimentacao] = None
-    tentativa_venda_negativa: bool = False
-    total_falta_estoque: float = 0.0
-    vendas_negativas_por_dia: Dict[datetime, int] = None
-    dia_mais_vendas_negativas: datetime = None
-    qtd_vendas_negativas_no_dia: int = 0
-    falta_no_dia_mais_vendas_negativas: float = 0.0
-
+    maior_falta_estoque: float = 0.0
+    data_maior_falta_estoque: datetime = None
+    
     def __post_init__(self):
         self.movimentacoes = []
-        self.vendas_negativas_por_dia = {}
 
     def registrar_entrada(self, data: datetime, quantidade: float):
         self.saldo_atual += quantidade
         self.movimentacoes.append(
             Movimentacao(data, 'E', quantidade, self.saldo_atual)
         )
-
+    
     def registrar_saida(self, data: datetime, quantidade: float) -> bool:
-        if self.saldo_atual >= quantidade:
-            self.saldo_atual -= quantidade
-            self.movimentacoes.append(
-                Movimentacao(data, 'S', quantidade, self.saldo_atual)
-            )
-            return True
-        else:
-            self.tentativa_venda_negativa = True
-            falta = quantidade - self.saldo_atual
-            self.total_falta_estoque += falta
-            
-            # Registra a tentativa de venda negativa do dia
-            data_sem_hora = datetime(data.year, data.month, data.day)
-            self.vendas_negativas_por_dia[data_sem_hora] = self.vendas_negativas_por_dia.get(data_sem_hora, 0) + 1
-            
-            # Atualiza o dia com mais vendas negativas e a falta total nesse dia
-            qtd_atual = self.vendas_negativas_por_dia[data_sem_hora]
-            if self.dia_mais_vendas_negativas is None or qtd_atual > self.qtd_vendas_negativas_no_dia:
-                self.dia_mais_vendas_negativas = data_sem_hora
-                self.qtd_vendas_negativas_no_dia = qtd_atual
-                self.falta_no_dia_mais_vendas_negativas = falta
-            elif self.dia_mais_vendas_negativas == data_sem_hora:
-                self.falta_no_dia_mais_vendas_negativas += falta
-            
-            # Realiza a venda mesmo sem estoque suficiente
-            self.saldo_atual -= quantidade
-            self.movimentacoes.append(
-                Movimentacao(data, 'S', quantidade, self.saldo_atual)
-            )
-            return True
-
+        flag = True
+        if quantidade > self.saldo_atual:
+            flag = False
+        self.saldo_atual -= quantidade
+        self.movimentacoes.append(
+            Movimentacao(data, 'S', quantidade, self.saldo_atual)
+        )
+        return flag
+    
     @property
     def total_entradas(self) -> float:
         return sum(m.quantidade for m in self.movimentacoes if m.tipo == 'E')
@@ -75,7 +48,6 @@ class Produto:
     @property
     def total_saidas(self) -> float:
         return sum(m.quantidade for m in self.movimentacoes if m.tipo == 'S')
-
 
 class ControladorEstoque:
     def __init__(self):
@@ -91,22 +63,23 @@ class ControladorEstoque:
         self.carregar_produtos_e_percentuais()
         self.carregar_movimentacoes()
         self.processar_movimentacoes()
-    
+
     def carregar_produtos_e_percentuais(self):
         """Carrega os produtos e seus percentuais de rendimento"""
-        with open('percentuais.csv', 'r', encoding='utf-8') as file:
+        with open('data/percentuais.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 codigo = int(row['SEQPRODUTO'])
                 descricao = row['DESCCOMPLETA']
                 percentual = float(row['PERCENTUAL'].replace(',', '.'))
                 self.produtos[codigo] = Produto(codigo, descricao, percentual)
+            print("Percentuais carregados com sucesso.")
 
     def carregar_movimentacoes(self):
         """Carrega todas as movimentações (entradas e saídas) e ordena por data"""
         # Carrega entradas
         entradas = []
-        with open('entradas.csv', 'r', encoding='utf-8') as file:
+        with open('data/entradas.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -116,10 +89,11 @@ class ControladorEstoque:
                 entradas.append(('E', data, quantidade, None))
                 self.entrada_total += quantidade
                 self.entradas_por_data[data_sem_hora] = quantidade
+            print("Entradas carregadas com sucesso.")
 
         # Carrega vendas
         vendas = []
-        with open('vendas.csv', 'r', encoding='utf-8') as file:
+        with open('data/vendas.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -127,25 +101,10 @@ class ControladorEstoque:
                 quantidade = float(row['QUANTIDADE'].replace(',', '.'))
                 if codigo in self.produtos:
                     vendas.append(('S', data, quantidade, codigo))
+            print("Vendas carregadas com sucesso.\n\n")
 
         # Combina e ordena todas as movimentações por data
         self.movimentacoes_ordenadas = sorted(entradas + vendas, key=lambda x: x[1])
-
-    def encontrar_entrada_do_dia(self, data: datetime) -> float:
-        """Encontra a entrada do dia especificado ou do dia mais próximo anterior"""
-        data_sem_hora = datetime(data.year, data.month, data.day)
-        
-        # Primeiro tenta encontrar entrada no mesmo dia
-        if data_sem_hora in self.entradas_por_data:
-            return self.entradas_por_data[data_sem_hora]
-        
-        # Se não encontrar, procura a entrada mais próxima anterior
-        datas_anteriores = [d for d in self.entradas_por_data.keys() if d < data_sem_hora]
-        if datas_anteriores:
-            data_mais_proxima = max(datas_anteriores)
-            return self.entradas_por_data[data_mais_proxima]
-        
-        return 0.0  # Retorna 0 se não encontrar nenhuma entrada anterior
 
     def processar_movimentacoes(self):
         """Processa todas as movimentações em ordem cronológica"""
@@ -159,20 +118,22 @@ class ControladorEstoque:
                 # Venda de produto específico
                 produto = self.produtos[codigo]
                 if not produto.registrar_saida(data, quantidade):
-                    falta = quantidade - produto.saldo_atual
                     print(f"ALERTA: Tentativa de venda sem estoque suficiente em {data.strftime('%d/%m/%y')}")
                     print(f"Produto: {produto.codigo} - {produto.descricao}")
                     print(f"Quantidade solicitada: {quantidade:.3f}")
-                    print(f"Saldo disponível: {produto.saldo_atual:.3f}")
-                    print(f"Quantidade faltante: {falta:.3f}")
-                    print()                    
+                    print(f"Saldo disponível: {produto.saldo_atual:.3f}")                   
                     self.tem_alertas_estoque = True
                     
                     # Armazenar a quantidade faltante no produto
                     if not hasattr(produto, 'total_falta_estoque'):
-                        produto.total_falta_estoque = 0
-                    produto.total_falta_estoque += falta
-                    
+                        produto.maior_falta_estoque = 0
+
+                    if produto.maior_falta_estoque > produto.saldo_atual:
+                        produto.maior_falta_estoque = produto.saldo_atual
+                        produto.data_maior_falta_estoque = data
+                        print(f"Quantidade ajustada para o produto: {produto.maior_falta_estoque:.3f} kg")
+                    print() 
+    
     def gerar_relatorio(self):
         """Gera um relatório completo do estoque"""
         print("\nRELATÓRIO DE ESTOQUE - CARNES BOVINAS")
@@ -217,7 +178,7 @@ class ControladorEstoque:
         
         # Encontra o produto com maior saldo
         produto_maior_saldo = max(self.produtos.values(), key=lambda p: p.saldo_atual)
-        print(f"\nPRODUTO COM MAIOR SALDO:")
+        print("\nPRODUTO COM MAIOR SALDO:")
         print(f"Código: {produto_maior_saldo.codigo}")
         print(f"Descrição: {produto_maior_saldo.descricao}")
         print(f"Saldo atual: {produto_maior_saldo.saldo_atual:.3f} kg")
@@ -226,53 +187,51 @@ class ControladorEstoque:
         print("\nVALIDAÇÕES E ALERTAS:")
         if abs(total_percentual - 100) > 0.01:
             print(f"ALERTA: Soma dos percentuais ({total_percentual:.3f}%) não totaliza 100%")
-        
+
         produtos_negativos = [p for p in self.produtos.values() if p.saldo_atual < 0]
         if produtos_negativos:
             print("\nALERTA: Produtos com saldo negativo:")
             for produto in produtos_negativos:
                 print(f"- {produto.codigo} {produto.descricao}: {produto.saldo_atual:.3f} kg")
         
-        produtos_tentativa_negativa = [p for p in self.produtos.values() if p.tentativa_venda_negativa]
+        produtos_tentativa_negativa = [p for p in self.produtos.values() if p.maior_falta_estoque < 0]
+
+        # for i, item in enumerate(produtos_tentativa_negativa, start=1):
+        #     print(f"{i}. Código: {item.codigo}, " 
+        #           f"Descrição: {item.descricao}, "
+        #           f"Saldo Atual: {item.saldo_atual:.3f} kg "
+        #           f"Negativo: {item.total_falta_estoque:.3f} kg")
+
         if produtos_tentativa_negativa:
             print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
             for produto in produtos_tentativa_negativa:
-                total_falta = getattr(produto, 'total_falta_estoque', 0)
                 print(f"- {produto.codigo} {produto.descricao}")
-                print(f"  Total de quantidade faltante: {total_falta:.3f} kg")
-                if produto.dia_mais_vendas_negativas:
-                    print(f"  Dia com mais tentativas de vendas negativas: {produto.dia_mais_vendas_negativas.strftime('%d/%m/%y')}")
-                    print(f"  Quantidade de tentativas neste dia: {produto.qtd_vendas_negativas_no_dia}")
-                    print(f"  Total faltante neste dia: {produto.falta_no_dia_mais_vendas_negativas:.3f} kg")
-                    # Encontra a entrada correspondente ao dia com mais vendas negativas
-                    entrada_do_dia = self.encontrar_entrada_do_dia(produto.dia_mais_vendas_negativas)
-                    if entrada_do_dia > 0:
-                        porcentagem = (produto.falta_no_dia_mais_vendas_negativas / entrada_do_dia) * 100
-                        print(f"  Porcentagem em relação à entrada do dia: {porcentagem:.2f}%")
+                print(f"  Total de quantidade faltante: {produto.maior_falta_estoque:.3f} kg")
+                print(f"  Data da maior falta de estoque: {produto.data_maior_falta_estoque.strftime('%d/%m/%y')}\n")
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
         """Gera um relatório detalhado das movimentações de um produto específico"""
         if codigo_produto is not None and codigo_produto not in self.produtos:
             print(f"Produto {codigo_produto} não encontrado!")
             return
-
+ 
         produtos = [self.produtos[codigo_produto]] if codigo_produto else self.produtos.values()
-        
+         
         for produto in produtos:
-            print(f"\nMovimentações do produto {produto.codigo} - {produto.descricao}")
-            print("-" * 80)
+            print(f"\nMOVIMENTAÇÕES - {produto.codigo} {produto.descricao}")
+            print("=" * 80)
             print(f"{'Data':<12} {'Tipo':<8} {'Quantidade':>12} {'Saldo':>12}")
             print("-" * 80)
-            
+             
             for mov in produto.movimentacoes:
-                print(f"{mov.data.strftime('%d/%m/%y'):<12} "
-                      f"{mov.tipo:<8} "
-                      f"{mov.quantidade:>12.3f} "
+                tipo = "Entrada" if mov.tipo == 'E' else "Saída"
+                print(f"{mov.data.strftime('%Y-%m-%d'):<12} "
+                      f"{tipo:<8} "
+                      f"{mov.quantidade:>12.2f} "
                       f"{mov.saldo_apos:>12.3f}")
-            print("-" * 80)
-
 
 if __name__ == "__main__":
     controlador = ControladorEstoque()
+    controlador.gerar_relatorio_movimentacoes(145924)
     controlador.gerar_relatorio()
     
