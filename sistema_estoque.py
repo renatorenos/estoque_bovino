@@ -2,6 +2,7 @@ import csv
 from dataclasses import dataclass
 from typing import Dict, List
 from datetime import datetime
+import math
 
 
 @dataclass
@@ -88,7 +89,7 @@ class ControladorEstoque:
                 data_sem_hora = datetime(data.year, data.month, data.day)
                 entradas.append(('E', data, quantidade, None))
                 self.entrada_total += quantidade
-                self.entradas_por_data[data_sem_hora] = quantidade
+                self.entradas_por_data[data_sem_hora] = self.entradas_por_data.get(data_sem_hora, 0) + quantidade
             print("Entradas carregadas com sucesso.")
 
         # Carrega vendas
@@ -196,18 +197,53 @@ class ControladorEstoque:
         
         produtos_tentativa_negativa = [p for p in self.produtos.values() if p.maior_falta_estoque < 0]
 
-        # for i, item in enumerate(produtos_tentativa_negativa, start=1):
-        #     print(f"{i}. Código: {item.codigo}, " 
-        #           f"Descrição: {item.descricao}, "
-        #           f"Saldo Atual: {item.saldo_atual:.3f} kg "
-        #           f"Negativo: {item.total_falta_estoque:.3f} kg")
-
         if produtos_tentativa_negativa:
             print("\nALERTA: Produtos com tentativas de venda com estoque insuficiente:")
             for produto in produtos_tentativa_negativa:
                 print(f"- {produto.codigo} {produto.descricao}")
                 print(f"  Total de quantidade faltante: {produto.maior_falta_estoque:.3f} kg")
-                print(f"  Data da maior falta de estoque: {produto.data_maior_falta_estoque.strftime('%d/%m/%y')}\n")
+                print(f"  Data da maior falta de estoque: {produto.data_maior_falta_estoque.strftime('%d/%m/%y')}")
+                print(f"  Percentual de falta: {self.calcula_percentual_falta(produto, produto.data_maior_falta_estoque):.2f}%\n")
+
+    def calcula_percentual_falta(self, produto, data_limite: datetime) -> float:
+        """
+        Calcula o percentual de falta de estoque de um produto em relação às entradas até uma data limite.
+
+        Args:
+            produto: O produto para o qual o percentual de falta será calculado.
+            data_limite: Data limite para considerar as entradas (exclusive).
+
+        Returns:
+            float: Percentual de falta arredondado para duas casas decimais
+        """
+        percentual_falta = round((produto.maior_falta_estoque * -100) / self.calcular_entradas_ate_data(data_limite), 2)
+        percentual_falta = 0.01 if percentual_falta < 0.01 else math.ceil(percentual_falta * 100) / 100
+        return percentual_falta
+
+    def calcular_entradas_ate_data(self, data_limite: datetime) -> float:
+        """
+        Calcula a soma de todas as entradas anteriores à data especificada.
+        
+        Args:
+            data_limite: Data limite para considerar as entradas (exclusive)
+            
+        Returns:
+            float: Soma total das entradas anteriores à data especificada
+        """
+        # Normaliza a data removendo a hora para comparação consistente
+        if isinstance(data_limite, datetime):
+            data_limite_sem_hora = datetime(data_limite.year, data_limite.month, data_limite.day)
+        else:
+            # Se a data for fornecida em outro formato, tenta convertê-la
+            data_limite_sem_hora = data_limite
+        
+        # Soma todas as entradas anteriores à data limite
+        total_entradas = 0.0
+        for data, quantidade in self.entradas_por_data.items():
+            if data <= data_limite_sem_hora:
+                total_entradas += quantidade
+                
+        return total_entradas
 
     def gerar_relatorio_movimentacoes(self, codigo_produto: int = None):
         """Gera um relatório detalhado das movimentações de um produto específico"""
