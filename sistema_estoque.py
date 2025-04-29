@@ -126,10 +126,6 @@ class ControladorEstoque:
                     print(f"Quantidade solicitada: {quantidade:.3f}")
                     print(f"Saldo disponível: {produto.saldo_atual:.3f}")                   
                     self.tem_alertas_estoque = True
-                    
-                    # Armazenar a quantidade faltante no produto
-                    if not hasattr(produto, 'total_falta_estoque'):
-                        produto.maior_falta_estoque = 0
 
                     if produto.maior_falta_estoque > produto.saldo_atual:
                         produto.maior_falta_estoque = produto.saldo_atual
