@@ -22,6 +22,7 @@ class Produto:
     movimentacoes: List[Movimentacao] = None
     maior_falta_estoque: float = 0.0
     data_maior_falta_estoque: datetime = None
+    percentual_ideal: float = 0.0
     
     def __post_init__(self):
         self.movimentacoes = []
@@ -67,7 +68,10 @@ class ControladorEstoque:
 
     def carregar_produtos_e_percentuais(self):
         """Carrega os produtos e seus percentuais de rendimento"""
-        with open('data/percentuais_v2.csv', 'r', encoding='utf-8') as file:
+        # arquivo = 'data/percentuais_abril.csv'
+        # arquivo = 'nome_arquivo.csv'
+        arquivo = 'abril.csv'
+        with open(arquivo, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 codigo = int(row['SEQPRODUTO'])
@@ -80,7 +84,7 @@ class ControladorEstoque:
         """Carrega todas as movimentações (entradas e saídas) e ordena por data"""
         # Carrega entradas
         entradas = []
-        with open('data/entradas_v2.csv', 'r', encoding='utf-8') as file:
+        with open('data/entradas_abril.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -94,7 +98,7 @@ class ControladorEstoque:
 
         # Carrega vendas
         vendas = []
-        with open('data/vendas_v2.csv', 'r', encoding='utf-8') as file:
+        with open('data/vendas_abril.csv', 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
                 data = datetime.strptime(row['DATA'], '%d/%m/%y')
@@ -114,8 +118,6 @@ class ControladorEstoque:
                 # Entrada do boi casado - distribui para os produtos
                 for produto in self.produtos.values():
                     quantidade_derivada = (quantidade * produto.percentual) / 100
-                    # if produto.codigo == 145924:
-                    #     print(f"$$$$$$$$$$  Quantidade {quantidade} | Perc {produto.percentual} | Quantidade derivada {quantidade_derivada:.3f}")
                     produto.registrar_entrada(data, quantidade_derivada)
             else:
                 # Venda de produto específico
@@ -133,7 +135,7 @@ class ControladorEstoque:
                         print(f"Quantidade ajustada para o produto: {produto.maior_falta_estoque:.3f} kg")
                     print() 
     
-    def gerar_relatorio(self):
+    def gerar_relatorio_analises(self):
         """Gera um relatório completo do estoque"""
         print("\nRELATÓRIO DE ESTOQUE - CARNES BOVINAS")
         print("=" * 100)
@@ -201,7 +203,9 @@ class ControladorEstoque:
                 print(f"- {produto.codigo} {produto.descricao}")
                 print(f"  Total de quantidade faltante: {produto.maior_falta_estoque:.3f} kg")
                 print(f"  Data da maior falta de estoque: {produto.data_maior_falta_estoque.strftime('%d/%m/%y')}")
-                print(f"  Percentual de falta: {self.calcula_percentual_falta(produto, produto.data_maior_falta_estoque)}%\n")
+                percentual_falta = self.calcula_percentual_falta(produto, produto.data_maior_falta_estoque)
+                produto_maior_saldo.percentual -= percentual_falta
+                print(f"  Percentual de falta: {percentual_falta}%\n")
 
     def calcula_percentual_falta(self, produto, data_limite: datetime) -> float:
         """
@@ -214,13 +218,10 @@ class ControladorEstoque:
         Returns:
             float: Percentual de falta arredondado para duas casas decimais
         """
-
-        # percentual_falta = round((produto.maior_falta_estoque * -100) / self.calcular_entradas_ate_data(data_limite), 2)
-        # percentual_falta = 0.01 if percentual_falta < 0.01 else math.ceil(percentual_falta * 100) / 100
-        # return percentual_falta
-
-        percentual_falta = (produto.maior_falta_estoque * -100) / self.calcular_entradas_ate_data(data_limite)
-        return math.ceil(percentual_falta * 100) / 100
+        percentual_falta_aux = (produto.maior_falta_estoque * -100) / self.calcular_entradas_ate_data(data_limite) 
+        percentual_falta = math.ceil(percentual_falta_aux * 100) / 100
+        produto.percentual_ideal = percentual_falta + produto.percentual
+        return percentual_falta
 
     def calcular_entradas_ate_data(self, data_limite: datetime) -> float:
         """
@@ -268,8 +269,18 @@ class ControladorEstoque:
                       f"{mov.quantidade:>12.2f} "
                       f"{mov.saldo_apos:>12.3f}")
 
+    def imprime_percentuais_atualizados(self):
+        with open("nome_arquivo.csv", mode='w', newline='', encoding='utf-8') as arquivo:
+            writer = csv.writer(arquivo, delimiter=';')
+            writer.writerow(["SEQPRODUTO", "DESCCOMPLETA", "PERCENTUAL"])
+            for produto in self.produtos.values():
+                percentual = produto.percentual_ideal if produto.percentual_ideal > 0.0 else produto.percentual
+                writer.writerow([produto.codigo, produto.descricao, f"{percentual:.2f}".replace('.', ',')])
+
+
 if __name__ == "__main__":
     controlador = ControladorEstoque()
-    controlador.gerar_relatorio_movimentacoes(145895)
-    controlador.gerar_relatorio()
+    controlador.gerar_relatorio_movimentacoes(145894)
+    controlador.gerar_relatorio_analises()
+    controlador.imprime_percentuais_atualizados()
     
