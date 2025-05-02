@@ -68,9 +68,9 @@ class ControladorEstoque:
 
     def carregar_produtos_e_percentuais(self):
         """Carrega os produtos e seus percentuais de rendimento"""
-        # arquivo = 'data/percentuais_abril.csv'
-        # arquivo = 'nome_arquivo.csv'
-        arquivo = 'abril.csv'
+        arquivo = 'data/percentuais_abril.csv'
+        # arquivo = 'data/ATUALIZADO.csv'
+        # arquivo = 'data/abril_1_a_30.csv'
         with open(arquivo, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
@@ -270,7 +270,7 @@ class ControladorEstoque:
                       f"{mov.saldo_apos:>12.3f}")
 
     def imprime_percentuais_atualizados(self):
-        with open("nome_arquivo.csv", mode='w', newline='', encoding='utf-8') as arquivo:
+        with open("data/ATUALIZADO.csv", mode='w', newline='', encoding='utf-8') as arquivo:
             writer = csv.writer(arquivo, delimiter=';')
             writer.writerow(["SEQPRODUTO", "DESCCOMPLETA", "PERCENTUAL"])
             for produto in self.produtos.values():
