@@ -54,8 +54,8 @@ class Produto:
 class ControladorEstoque:
     def __init__(self):
         self.produtos: Dict[int, Produto] = {}
-        self.produto_base_codigo = 25274
-        self.produto_base_descricao = "CARNE BOV RSF KG"
+        # self.produto_base_codigo = 25274
+        # self.produto_base_descricao = "CARNE BOV RSF KG"
         self.entrada_total = 0.0
         self.entradas_por_data: Dict[datetime, float] = {}
         self.movimentacoes_ordenadas = []
@@ -68,9 +68,8 @@ class ControladorEstoque:
 
     def carregar_produtos_e_percentuais(self):
         """Carrega os produtos e seus percentuais de rendimento"""
-        # arquivo = 'data/agosto/percentuais.csv'
-        # arquivo = 'data/agosto/ATUALIZADO.csv'
-        arquivo = 'data/agosto/agosto.csv'
+        arquivo = 'data/agosto/percentuais.csv'
+        # arquivo = 'data/agosto/agosto.csv'
         with open(arquivo, 'r', encoding='utf-8') as file:
             reader = csv.DictReader(file, delimiter=';')
             for row in reader:
@@ -115,7 +114,7 @@ class ControladorEstoque:
         """Processa todas as movimentações em ordem cronológica"""
         for tipo, data, quantidade, codigo in self.movimentacoes_ordenadas:
             if tipo == 'E':
-                # Entrada do boi casado - distribui para os produtos
+                # Entrada - distribui para os produtos
                 for produto in self.produtos.values():
                     quantidade_derivada = (quantidade * produto.percentual) / 100
                     produto.registrar_entrada(data, quantidade_derivada)
@@ -137,14 +136,14 @@ class ControladorEstoque:
     
     def gerar_relatorio_analises(self):
         """Gera um relatório completo do estoque"""
-        print("\nRELATÓRIO DE ESTOQUE - CARNES BOVINAS")
+        print("\nRELATÓRIO DE ESTOQUE")
         print("=" * 100)
         
         # Informações do produto base
-        print("\nPRODUTO BASE:")
-        print(f"Código: {self.produto_base_codigo}")
-        print(f"Descrição: {self.produto_base_descricao}")
-        print(f"Quantidade Total Entrada: {self.entrada_total:.3f} kg")
+        # print("\nPRODUTO BASE:")
+        # print(f"Código: {self.produto_base_codigo}")
+        # print(f"Descrição: {self.produto_base_descricao}")
+        # print(f"Quantidade Total Entrada: {self.entrada_total:.3f} kg")
         
         # Informações dos produtos derivados
         print("\nPRODUTOS DERIVADOS:")
@@ -272,15 +271,16 @@ class ControladorEstoque:
     def imprime_percentuais_atualizados(self):
         with open("data/agosto/ATUALIZADO.csv", mode='w', newline='', encoding='utf-8') as arquivo:
             writer = csv.writer(arquivo, delimiter=';')
-            writer.writerow(["SEQPRODUTO", "DESCCOMPLETA", "PERCENTUAL"])
+            writer.writerow(["SEQPRODUTO", "DESCCOMPLETA", "PERCENTUAL", "KGVENDIDO"])
             for produto in self.produtos.values():
                 percentual = produto.percentual_ideal if produto.percentual_ideal > 0.0 else produto.percentual
-                writer.writerow([produto.codigo, produto.descricao, f"{percentual:.2f}".replace('.', ',')])
+                writer.writerow([produto.codigo, produto.descricao, f"{percentual:.2f}".replace('.', ','), produto.total_saidas])
 
 
 if __name__ == "__main__":
     controlador = ControladorEstoque()
-    # controlador.gerar_relatorio_movimentacoes(145894)
+    # controlador.gerar_relatorio_movimentacoes(147031)
     controlador.gerar_relatorio_analises()
     controlador.imprime_percentuais_atualizados()
+    print('\n')
     
